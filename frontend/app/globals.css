@@ -1,0 +1,195 @@
+:root {
+  /* Light Mode Palette */
+  --background: #ffffff;
+  --foreground: #0f172a;
+  /* Slate 900 */
+
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+
+  --primary: #0f172a;
+  --primary-foreground: #f8fafc;
+  /* Slate 50 */
+
+  --secondary: #f1f5f9;
+  /* Slate 100 */
+  --secondary-foreground: #0f172a;
+
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  /* Slate 500 */
+
+  --accent: #f1f5f9;
+  --accent-foreground: #0f172a;
+
+  --destructive: #ef4444;
+  --destructive-foreground: #f8fafc;
+
+  --border: #e2e8f0;
+  /* Slate 200 */
+  --input: #e2e8f0;
+  --ring: #0f172a;
+
+  --radius: 0.5rem;
+
+  /* Sidebar specific */
+  --sidebar-background: #f8fafc;
+  /* Slate 50 */
+  --sidebar-foreground: #0f172a;
+  --sidebar-border: #e2e8f0;
+}
+
+html,
+body {
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Utility classes for layout */
+.layout {
+  display: flex;
+  min-height: 100vh;
+  /* overflow: hidden;  <-- REMOVED to allow body scroll for Lenis */
+}
+
+.sidebar {
+  width: 260px;
+  background: var(--sidebar-background);
+  border-right: 1px solid var(--sidebar-border);
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+  flex-shrink: 0;
+}
+
+.main-content {
+  flex: 1;
+  /* overflow-y: auto; <-- REMOVED to allow body scroll for Lenis */
+  padding: 2rem;
+  background: var(--background);
+  margin-left: 70px;
+  /* Width of collapsed sidebar */
+}
+
+/* Tag Filter Style */
+.tag-filter {
+  font-size: 0.75rem;
+  padding: 0.1rem 0.6rem;
+  border-radius: 999px;
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  color: var(--secondary-foreground);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  transition: all 0.2s;
+}
+
+.tag-filter:hover {
+  background: var(--accent);
+  border-color: var(--ring);
+}
+
+/* Typography utilities */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
+.text-muted {
+  color: var(--muted-foreground);
+}
+
+.text-small {
+  font-size: 0.875rem;
+}
+
+/* Button utilities */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius);
+  font-weight: 500;
+  font-size: 0.875rem;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  border: none;
+  outline: none;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.btn-primary:hover {
+  opacity: 0.9;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--foreground);
+}
+
+.btn-ghost:hover {
+  background: var(--accent);
+}
+
+.btn-icon {
+  padding: 0.5rem;
+}
+
+/* Form utilities */
+.input,
+.textarea {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--input);
+  background: transparent;
+  color: var(--foreground);
+  outline: none;
+}
+
+.input:focus,
+.textarea:focus {
+  border-color: var(--ring);
+}
+
+.label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin-bottom: 0.25rem;
+}
