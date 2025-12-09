@@ -9,22 +9,21 @@ type Props = {
     refreshTrigger: number;
 };
 
+const DEFAULT_LIMIT = 50;
+
 export function RecentEntries({ refreshTrigger }: Props) {
     const [events, setEvents] = useState<EventItem[]>([]);
     const [query, setQuery] = useState("");
     const [sourceFilter, setSourceFilter] = useState<string>("");
-    const [offset, setOffset] = useState(0);
-    const limit = 2;
 
     useEffect(() => {
         refreshEvents();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [offset, sourceFilter, query, refreshTrigger]);
+    }, [sourceFilter, query, refreshTrigger]);
 
     async function refreshEvents() {
         const params = new URLSearchParams();
-        params.set("limit", String(limit));
-        params.set("offset", String(offset));
+        params.set("limit", String(DEFAULT_LIMIT));
         if (sourceFilter) params.set("source", sourceFilter);
         if (query.trim()) params.set("q", query.trim());
         try {
@@ -37,8 +36,6 @@ export function RecentEntries({ refreshTrigger }: Props) {
         }
     }
 
-    const canPrev = offset > 0;
-
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
             <section style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
@@ -48,15 +45,13 @@ export function RecentEntries({ refreshTrigger }: Props) {
                         <Maximize2 size={14} /> View all
                     </Link>
                 </div>
+                <div className="text-small text-muted">Latest {DEFAULT_LIMIT} entries · </div>
                 <div style={{ display: "flex", gap: "0.5rem" }}>
                     <input
                         className="input"
                         placeholder="Search..."
                         value={query}
-                        onChange={(e) => {
-                            setQuery(e.target.value);
-                            setOffset(0);
-                        }}
+                        onChange={(e) => setQuery(e.target.value)}
                         style={{ flex: 1 }}
                     />
                     <button className="btn btn-ghost btn-icon" onClick={refreshEvents} title="Refresh">
@@ -66,10 +61,7 @@ export function RecentEntries({ refreshTrigger }: Props) {
                 <select
                     className="input"
                     value={sourceFilter}
-                    onChange={(e) => {
-                        setSourceFilter(e.target.value);
-                        setOffset(0);
-                    }}
+                    onChange={(e) => setSourceFilter(e.target.value)}
                 >
                     <option value="">All sources</option>
                     <option value="manual">Manual</option>
@@ -78,21 +70,13 @@ export function RecentEntries({ refreshTrigger }: Props) {
                 </select>
             </section>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "1rem", overflowY: "auto", maxHeight: "calc(100vh - 200px)", paddingRight: "0.5rem" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "1rem", overflowY: "auto", maxHeight: "70vh", paddingRight: "0.5rem" }}>
                 {events.map((evt) => (
                     <EventCard key={evt.id} event={evt} onUpdated={refreshEvents} />
                 ))}
                 {events.length === 0 && (
                     <p className="text-muted" style={{ textAlign: "center", padding: "2rem" }}>No entries found.</p>
                 )}
-                <div style={{ display: "flex", justifyContent: "space-between", marginTop: "0.5rem" }}>
-                    <button className="btn btn-ghost text-small" onClick={() => setOffset((o) => Math.max(0, o - limit))} disabled={!canPrev}>
-                        Previous
-                    </button>
-                    <button className="btn btn-ghost text-small" onClick={() => setOffset((o) => o + limit)}>
-                        Next
-                    </button>
-                </div>
             </div>
         </div>
     );

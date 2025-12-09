@@ -172,7 +172,20 @@ function getDb(options = {}) {
   return cachedDb;
 }
 
+function closeDb() {
+  if (cachedDb) {
+    try {
+      cachedDb.close();
+    } catch (err) {
+      console.warn('[db] failed to close database', err.message);
+    }
+  }
+  cachedDb = null;
+}
+
 module.exports = {
   getDb,
-  openDatabase
+  openDatabase,
+  closeDb,
+  DEFAULT_DB_PATH
 };

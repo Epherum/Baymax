@@ -10,6 +10,38 @@ const STATUS_VALUES = new Set(['in_progress', 'completed', 'archived']);
 const MAX_TEXT_LENGTH = 500000;
 const MAX_TITLE_LENGTH = 255;
 
+function normalizeMetricKey(key = '') {
+  return String(key).trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
+function levenshtein(a, b) {
+  const m = a.length;
+  const n = b.length;
+  const dp = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+    }
+  }
+  return dp[m][n];
+}
+
+function findClosestMetric(key, existing = []) {
+  if (!existing.length) return null;
+  const normalized = normalizeMetricKey(key);
+  let best = null;
+  for (const ex of existing) {
+    const dist = levenshtein(normalized, normalizeMetricKey(ex));
+    if (!best || dist < best.d) {
+      best = { key: ex, d: dist };
+    }
+  }
+  return best;
+}
+
 function isValidDateString(value) {
   if (!value || typeof value !== 'string') return false;
   const ts = Date.parse(value);
@@ -280,6 +312,95 @@ router.delete('/:id', (req, res) => {
     return;
   }
   res.status(204).send();
+});
+
+router.get('/:id/metric-check', async (req, res) => {
+  const db = getDb();
+  const importRow = db
+    .prepare(
+      `SELECT id, title
+       FROM life_dump_imports
+       WHERE id = ?`
+    )
+    .get(req.params.id);
+  if (!importRow) {
+    res.status(404).json({ message: 'Import not found' });
+    return;
+  }
+
+  const chunks = db
+    .prepare(
+      `SELECT id, position, raw_text
+       FROM life_dump_chunks
+       WHERE import_id = ?
+       ORDER BY position ASC`
+    )
+    .all(importRow.id);
+
+  const existingKeys = db
+    .prepare(
+      `SELECT DISTINCT json_each.key AS key
+       FROM event_metadata, json_each(event_metadata.metrics)
+       WHERE event_metadata.metrics IS NOT NULL`
+    )
+    .all()
+    .map((r) => r.key)
+    .filter(Boolean);
+
+  const newMetrics = [];
+  const nearDuplicates = [];
+  const seenNewNormalized = new Set();
+
+  for (const chunk of chunks) {
+    let parsed = null;
+    try {
+      const raw = await generateCaptureMetadata((chunk.raw_text || '').slice(0, 8000));
+      parsed = extractJson(raw);
+    } catch (err) {
+      console.error(`Metric check: capture metadata failed for chunk ${chunk.id}`, err);
+    }
+    const metricsObj =
+      parsed && parsed.metrics && typeof parsed.metrics === 'object' && !Array.isArray(parsed.metrics)
+        ? parsed.metrics
+        : null;
+    if (!metricsObj) continue;
+    for (const key of Object.keys(metricsObj)) {
+      const normalized = normalizeMetricKey(key);
+      const existingMatch = existingKeys.find((k) => normalizeMetricKey(k) === normalized);
+      if (existingMatch) {
+        continue;
+      }
+      if (seenNewNormalized.has(normalized)) {
+        continue;
+      }
+      seenNewNormalized.add(normalized);
+      const closest = findClosestMetric(key, [...existingKeys, ...Array.from(seenNewNormalized)]);
+      if (closest && closest.d <= 2) {
+        nearDuplicates.push({
+          key,
+          normalized,
+          closest: closest.key,
+          distance: closest.d,
+          chunk_id: chunk.id,
+          position: chunk.position
+        });
+      } else {
+        newMetrics.push({
+          key,
+          normalized,
+          chunk_id: chunk.id,
+          position: chunk.position
+        });
+      }
+    }
+  }
+
+  res.json({
+    metrics: {
+      new_keys: newMetrics,
+      near_duplicates: nearDuplicates
+    }
+  });
 });
 
 async function materializeImport(db, importRow) {

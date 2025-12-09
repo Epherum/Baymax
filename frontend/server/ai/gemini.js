@@ -1,26 +1,12 @@
+const {
+  SUMMARY_SYSTEM_INSTRUCTION,
+  CAPTURE_METADATA_SYSTEM_INSTRUCTION,
+  buildSummaryPrompt,
+  buildCaptureMetadataPrompt
+} = require('../prompts');
+
 const GEMINI_ENDPOINT =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
-const DEFAULT_SUMMARY_INSTRUCTIONS =
-  'Summarize the user-provided journal text in 2-4 neutral sentences. Avoid advice or moral judgments. Focus on key events, feelings, and context. Output plain text only.';
-const CAPTURE_METADATA_INSTRUCTIONS = `
-You are converting raw journaling text into structured capture metadata.
-- Stay neutral and non-judgmental. Do not give advice.
-- If a value is unclear, use null.
-- Boundaries:
-  mood_score: integer between -5 and 5 (negative is worse mood).
-  energy_level: integer between 0 and 10.
-  importance: integer between 1 and 5 (1=trivial, 5=life-changing).
-  location: string (e.g. "Home", "Gym", "Office").
-  tags: array of 1-3 short lowercase tags (no spaces; use hyphens if needed).
-  people: array of names mentioned (e.g. ["Alex", "Mom"]).
-  activities: array of activities (e.g. ["running", "coding"]).
-  emotions: array of emotions (e.g. ["happy", "anxious"]).
-  metrics: object of numeric key/value pairs when explicit (e.g., "hours_worked": 3.5). Use {} if none.
-- Summary: concise, 1-3 sentences, neutral tone.
-- Output JSON ONLY with keys: summary, mood_score, energy_level, importance, location, tags, people, activities, emotions, metrics.
-Example output:
-{"summary":"...","mood_score":1,"energy_level":6,"importance":3,"location":"Home","tags":["sleep","stress"],"people":["Alex"],"activities":["coding"],"emotions":["focused"],"metrics":{"hours_worked":3}}
-`;
 
 function getApiKey() {
   return process.env.Gemini_API || process.env.GEMINI_API || process.env.GEMINI_API_KEY || '';
@@ -75,16 +61,16 @@ async function generateSummary(text) {
   if (!text || typeof text !== 'string') {
     throw new Error('Text is required for summary generation');
   }
-  const prompt = `Text:\n${text.slice(0, 6000)}\n\nReturn a concise neutral summary.`;
-  return callGemini({ prompt, systemInstruction: DEFAULT_SUMMARY_INSTRUCTIONS });
+  const prompt = buildSummaryPrompt(text);
+  return callGemini({ prompt, systemInstruction: SUMMARY_SYSTEM_INSTRUCTION });
 }
 
 async function generateCaptureMetadata(text) {
   if (!text || typeof text !== 'string') {
     throw new Error('Text is required for capture metadata');
   }
-  const prompt = `Text:\n${text.slice(0, 6000)}\n\nExtract summary, mood_score, energy_level, importance, location, tags, people, activities, emotions, metrics. Return JSON only.`;
-  return callGemini({ prompt, systemInstruction: CAPTURE_METADATA_INSTRUCTIONS });
+  const prompt = buildCaptureMetadataPrompt(text);
+  return callGemini({ prompt, systemInstruction: CAPTURE_METADATA_SYSTEM_INSTRUCTION });
 }
 
 function extractJson(text) {

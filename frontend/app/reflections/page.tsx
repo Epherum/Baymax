@@ -8,6 +8,7 @@ import { InsightModal } from "@/components/reflections/InsightModal";
 import { ReflectionModal } from "@/components/reflections/ReflectionModal";
 import { ReflectionTimeline } from "@/components/reflections/ReflectionTimeline";
 import { AnimatePresence, motion } from "framer-motion";
+import { Modal } from "@/components/ui/Modal";
 
 export default function ReflectionsPage() {
   const [reflections, setReflections] = useState<Reflection[]>([]);
@@ -25,9 +26,16 @@ export default function ReflectionsPage() {
   const [loadingReflectionChat, setLoadingReflectionChat] = useState(false);
   const [sendingReflectionChat, setSendingReflectionChat] = useState(false);
   const [reflectionChatError, setReflectionChatError] = useState<string | null>(null);
+  const [dueStatuses, setDueStatuses] = useState<Array<{ period: "daily" | "weekly" | "monthly"; due: boolean; next_due_at?: string | null; current_token?: string; last_run_token?: string | null }>>([]);
+  const [dueLoading, setDueLoading] = useState(false);
+  const [dueError, setDueError] = useState<string | null>(null);
+  const [snoozeInputs, setSnoozeInputs] = useState<Record<string, string>>({});
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showReminderModal, setShowReminderModal] = useState(false);
 
   useEffect(() => {
     refreshReflections();
+    refreshDueStatuses();
   }, []);
 
   async function refreshReflections() {
@@ -41,6 +49,64 @@ export default function ReflectionsPage() {
         grouped[ev.reflection_id].push(ev);
       });
       setEvidenceEvents(grouped);
+    }
+  }
+
+  async function refreshDueStatuses() {
+    setDueLoading(true);
+    setDueError(null);
+    try {
+      const res = await fetch("/api/reflections/due");
+      if (!res.ok) throw new Error("Failed to load reflection reminders");
+      const data = await res.json();
+      const periods = Array.isArray(data.periods) ? data.periods : [];
+      const normalized = periods
+        .map((p: any) => ({
+          period: p?.period,
+          due: !!p?.due,
+          next_due_at: p?.next_due_at ?? null,
+          current_token: p?.current_token,
+          last_run_token: p?.last_run_token ?? null,
+        }))
+        .filter((p: any) => p.period === "daily" || p.period === "weekly" || p.period === "monthly");
+      setDueStatuses(normalized as any);
+      setSnoozeInputs((prev) => {
+        const next = { ...prev };
+        normalized.forEach((p) => {
+          const key = p?.period;
+          if (key && !next[key]) {
+            next[key] = p?.next_due_at ? String(p.next_due_at).slice(0, 10) : "";
+          }
+        });
+        return next;
+      });
+    } catch (err: any) {
+      setDueError(err?.message || "Failed to load reflection reminders");
+    } finally {
+      setDueLoading(false);
+    }
+  }
+
+  async function handleSnooze(period: "daily" | "weekly" | "monthly", overrideDate?: string) {
+    const date = overrideDate ?? snoozeInputs[period];
+    if (!date) return;
+    setDueLoading(true);
+    setDueError(null);
+    try {
+      const res = await fetch("/api/reflections/due", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ period, next_due_at: date }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.message || "Failed to update reminder");
+      }
+      await refreshDueStatuses();
+    } catch (err: any) {
+      setDueError(err?.message || "Failed to update reminder");
+    } finally {
+      setDueLoading(false);
     }
   }
 
@@ -73,6 +139,8 @@ export default function ReflectionsPage() {
         body: JSON.stringify(data),
       });
       refreshReflections();
+      setShowCreateModal(false);
+      refreshDueStatuses();
     } finally {
       setSaving(false);
     }
@@ -92,6 +160,7 @@ export default function ReflectionsPage() {
         if (result.events && result.reflection?.id) {
           setEvidenceEvents((prev) => ({ ...prev, [result.reflection.id]: result.events }));
         }
+        refreshDueStatuses();
         return result;
       }
     } finally {
@@ -253,9 +322,21 @@ export default function ReflectionsPage() {
   return (
     <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
       <header style={{ marginBottom: "2rem" }}>
-        <h1>Reflections</h1>
-        <p className="text-muted">Analyze your emotional and behavioral patterns (Gemini 2.5 Flash will power the analyses).</p>
-        <div style={{ marginTop: "0.75rem", display: "flex", gap: "0.5rem" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", alignItems: "center", flexWrap: "wrap" }}>
+          <div>
+            <h1>Reflections</h1>
+            <p className="text-muted" style={{ marginTop: "0.25rem" }}>Analyze your emotional and behavioral patterns (Gemini 2.5 Flash will power the analyses).</p>
+          </div>
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+            <button className="btn btn-ghost" type="button" onClick={() => setShowReminderModal(true)}>
+              Reminders
+            </button>
+            <button className="btn btn-primary" type="button" onClick={() => setShowCreateModal(true)}>
+              Add reflection
+            </button>
+          </div>
+        </div>
+        <div style={{ marginTop: "0.75rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
           <button
             className="btn btn-ghost btn-sm"
             type="button"
@@ -274,13 +355,6 @@ export default function ReflectionsPage() {
           </button>
         </div>
       </header>
-
-      <ReflectionForm
-        onCreate={handleCreate}
-        onGenerate={handleGenerate}
-        generating={generating}
-        saving={saving}
-      />
 
       <AnimatePresence mode="wait">
         {viewMode === "cards" ? (
@@ -316,6 +390,90 @@ export default function ReflectionsPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <Modal
+        open={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        title="New reflection"
+        width="min(900px, 95vw)"
+      >
+        <ReflectionForm
+          onCreate={handleCreate}
+          onGenerate={handleGenerate}
+          generating={generating}
+          saving={saving}
+        />
+      </Modal>
+
+      <Modal
+        open={showReminderModal}
+        onClose={() => setShowReminderModal(false)}
+        title="Reflection reminders"
+        width="min(900px, 95vw)"
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.75rem", flexWrap: "wrap", marginBottom: "0.75rem" }}>
+          <p className="text-small text-muted" style={{ margin: 0 }}>
+            Automatic daily/weekly/monthly reflections are disabled. Use reminders and start them manually.
+          </p>
+          <button className="btn btn-ghost btn-sm" type="button" onClick={refreshDueStatuses} disabled={dueLoading}>
+            {dueLoading ? "Checking..." : "Refresh"}
+          </button>
+        </div>
+        {dueError && <div className="text-small" style={{ color: "var(--destructive)", marginBottom: "0.5rem" }}>{dueError}</div>}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "0.75rem" }}>
+          {dueStatuses.map((status) => {
+            const niceLabel = status.period.charAt(0).toUpperCase() + status.period.slice(1);
+            const nextDisplay = status.next_due_at ? new Date(status.next_due_at).toISOString().slice(0, 10) : "Not set";
+            return (
+              <div key={status.period} style={{ border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "0.75rem", background: status.due ? "var(--muted)" : "transparent" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.5rem" }}>
+                  <strong>{niceLabel} reflection</strong>
+                  <span className="text-small" style={{ color: status.due ? "var(--destructive)" : "var(--muted-foreground)" }}>
+                    {status.due ? "Due" : "Not due"}
+                  </span>
+                </div>
+                <div className="text-small text-muted" style={{ marginTop: "0.35rem" }}>
+                  Next reminder: {nextDisplay}
+                </div>
+                <div style={{ display: "flex", gap: "0.35rem", alignItems: "center", marginTop: "0.5rem" }}>
+                  <input
+                    className="input"
+                    type="date"
+                    value={snoozeInputs[status.period] ?? ""}
+                    onChange={(e) => setSnoozeInputs((prev) => ({ ...prev, [status.period]: e.target.value }))}
+                    style={{ flex: 1 }}
+                  />
+                  <button className="btn btn-ghost btn-sm" type="button" onClick={() => handleSnooze(status.period)} disabled={dueLoading || !(snoozeInputs[status.period]?.trim())}>
+                    Set reminder
+                  </button>
+                </div>
+                <div style={{ display: "flex", gap: "0.35rem", alignItems: "center", marginTop: "0.35rem" }}>
+                  <button className="btn btn-primary btn-sm" type="button" onClick={() => setShowCreateModal(true)}>
+                    Start reflection
+                  </button>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    type="button"
+                    onClick={() => {
+                      const tomorrow = new Date();
+                      tomorrow.setDate(tomorrow.getDate() + 1);
+                      const iso = tomorrow.toISOString().slice(0, 10);
+                      setSnoozeInputs((prev) => ({ ...prev, [status.period]: iso }));
+                      handleSnooze(status.period, iso);
+                    }}
+                    disabled={dueLoading}
+                  >
+                    Remind tomorrow
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+          {dueStatuses.length === 0 && (
+            <div className="text-small text-muted">No reminder data yet. Click refresh to load.</div>
+          )}
+        </div>
+      </Modal>
 
       <ReflectionModal
         open={!!activeReflection}

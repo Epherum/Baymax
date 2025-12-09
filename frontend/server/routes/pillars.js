@@ -1,6 +1,7 @@
 const express = require('express');
 const { getDb } = require('../db');
 const { callGemini } = require('../ai/gemini');
+const { buildPillarChatPrompt, PILLAR_CHAT_SYSTEM_INSTRUCTION } = require('../prompts');
 
 const router = express.Router();
 const MAX_TEXT = 8000;
@@ -157,20 +158,16 @@ router.post('/:id/chat', async (req, res) => {
     return `${date} — ${text}`.slice(0, 260);
   });
 
-  const prompt = [
-    `You are reviewing how the user aligns or strays from the pillar "${pillar.title}".`,
-    `Pillar details: ${pillar.values_text || '(no details provided)'}.`,
-    `User question: ${question}`,
-    contextLines.length
-      ? `Recent captures (${contextLines.length}):\n${contextLines.join('\n')}`
-      : 'No captures matched this pillar. Be transparent about limited context.',
-    `Answer concisely. Highlight alignment vs drift, cite dates/snippets where relevant, stay neutral but actionable. If data is thin, say so.`
-  ].join('\n\n');
-
+  const prompt = buildPillarChatPrompt({
+    pillarTitle: pillar.title,
+    pillarDetails: pillar.values_text,
+    question,
+    contextLines
+  });
   try {
     const answer = await callGemini({
       prompt,
-      systemInstruction: 'Be concise, grounded in provided events, and focus on alignment vs drift.'
+      systemInstruction: PILLAR_CHAT_SYSTEM_INSTRUCTION
     });
     res.json({ answer, used_events: events.length });
   } catch (err) {

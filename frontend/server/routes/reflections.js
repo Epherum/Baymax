@@ -1,7 +1,9 @@
 const express = require('express');
 const crypto = require('crypto');
 const { getDb } = require('../db');
+const { markRun, computeDue, setNextDue, getToken } = require('../reflectionSchedule');
 const { callGemini, extractJson } = require('../ai/gemini');
+const { buildInsightChatPrompt, buildReflectionChatPrompt } = require('../prompts');
 const { upsertReflectionRelationships, upsertMetricAnnotations } = require('../relationships');
 const { generatePatterns } = require('../patterns/generator');
 
@@ -133,36 +135,6 @@ function fetchEvidenceEvents(db, eventIds = []) {
     .all(...eventIds);
 }
 
-function buildInsightChatPrompt({ reflection, insight, history, userMessage, evidence }) {
-  const historyText = history
-    .map((m) => `${m.role === 'assistant' ? 'Assistant' : 'User'}: ${m.message}`)
-    .join('\n');
-  const evidenceText = evidence && evidence.length
-    ? evidence
-      .map((e) => {
-        const dateValue = e.occurred_at ? new Date(e.occurred_at) : null;
-        const date = dateValue && !Number.isNaN(dateValue.getTime()) ? dateValue.toISOString().slice(0, 10) : 'Unknown date';
-        const snippet = e.raw_text ? e.raw_text.slice(0, 240) : '';
-        return `- ${date}: ${snippet}`;
-      })
-      .join('\n')
-    : 'No explicit evidence events were provided.';
-
-  return [
-    'You are Baymax, a neutral pattern mirror. Do not advise, moralize, or speculate. Stay concise and grounded in provided evidence.',
-    `Reflection window: ${reflection.range_start} to ${reflection.range_end} (${reflection.period}).`,
-    reflection.summary ? `Reflection summary: ${reflection.summary}` : null,
-    `Insight: ${insight.statement}${insight.type ? ` [${insight.type}]` : ''}${Number.isFinite(insight.confidence) ? ` (confidence ${insight.confidence})` : ''}.`,
-    insight.insight ? `Context: ${insight.insight}` : null,
-    `Evidence snippets:\n${evidenceText}`,
-    'Conversation so far:\n' + (historyText || 'No prior messages.'),
-    `User: ${userMessage}`,
-    'Assistant:'
-  ]
-    .filter(Boolean)
-    .join('\n\n');
-}
-
 function fetchReflectionChatMessages(db, reflectionId, limit = 200) {
   return db
     .prepare(
@@ -173,40 +145,6 @@ function fetchReflectionChatMessages(db, reflectionId, limit = 200) {
        LIMIT ?`
     )
     .all(reflectionId, limit);
-}
-
-function buildReflectionChatPrompt({ reflection, history, userMessage, events }) {
-  const historyText = history
-    .map((m) => `${m.role === 'assistant' ? 'Assistant' : 'User'}: ${m.message}`)
-    .join('\n');
-  const evidenceText = Array.isArray(events) && events.length
-    ? events
-      .map((e) => {
-        const dateValue = e.occurred_at ? new Date(e.occurred_at) : null;
-        const date = dateValue && !Number.isNaN(dateValue.getTime()) ? dateValue.toISOString().slice(0, 10) : 'Unknown date';
-        const snippet = e.raw_text ? e.raw_text.slice(0, 240) : '';
-        return `- ${date}: ${snippet}`;
-      })
-      .join('\n')
-    : 'No linked events found for this reflection.';
-
-  const insightLines = Array.isArray(reflection.patterns)
-    ? reflection.patterns.map((p, idx) => `• ${p.statement || `Insight ${idx + 1}`}${p.type ? ` [${p.type}]` : ''}${Number.isFinite(p.confidence) ? ` (confidence ${p.confidence})` : ''}`)
-    : [];
-
-  return [
-    'You are Baymax, a neutral reflection companion. Do not advise, moralize, or speculate. Stay concise and stick to evidence.',
-    `Reflection window: ${reflection.range_start} → ${reflection.range_end} (${reflection.period}, depth ${reflection.depth}).`,
-    reflection.summary ? `Summary: ${reflection.summary}` : null,
-    reflection.insights ? `Overall insight: ${reflection.insights}` : null,
-    insightLines.length ? `Insights:\n${insightLines.join('\n')}` : null,
-    `Evidence events:\n${evidenceText}`,
-    'Conversation so far:\n' + (historyText || 'No prior messages.'),
-    `User: ${userMessage}`,
-    'Assistant:'
-  ]
-    .filter(Boolean)
-    .join('\n\n');
 }
 
 router.get('/', (req, res) => {
@@ -236,6 +174,40 @@ router.get('/', (req, res) => {
       .all(...reflectionIds);
   }
   res.json({ reflections, events, limit, offset });
+});
+
+router.get('/due', (_req, res) => {
+  try {
+    const db = getDb();
+    const periods = ['daily', 'weekly', 'monthly'];
+    const statuses = periods.map((p) => computeDue(db, p));
+    res.json({ periods: statuses });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to load due statuses', error: err.message });
+  }
+});
+
+router.post('/due', (req, res) => {
+  const { period, next_due_at } = req.body ?? {};
+  if (!period || !['daily', 'weekly', 'monthly'].includes(period)) {
+    res.status(400).json({ message: 'period must be daily, weekly, or monthly' });
+    return;
+  }
+  if (next_due_at) {
+    const parsed = new Date(next_due_at);
+    if (!Number.isFinite(parsed.getTime())) {
+      res.status(400).json({ message: 'next_due_at must be a valid date' });
+      return;
+    }
+  }
+  try {
+    const db = getDb();
+    setNextDue(db, period, next_due_at || null);
+    const status = computeDue(db, period);
+    res.json({ period: status });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to update due date', error: err.message });
+  }
 });
 
 router.get('/:id/insights/:insightId/chat', (req, res) => {
@@ -535,6 +507,13 @@ router.post('/', (req, res) => {
     } catch (err) {
       console.error('Failed to upsert reflection relationships', err);
     }
+    if (period === 'daily' || period === 'weekly' || period === 'monthly') {
+      try {
+        markRun(db, period, getToken(period));
+      } catch (err) {
+        console.warn('Failed to mark reflection run', err.message);
+      }
+    }
     const created = db
       .prepare(
         `SELECT id, period, range_start, range_end, depth, summary, mood_curve,
@@ -643,6 +622,13 @@ router.post('/generate', async (req, res) => {
       });
     } catch (err) {
       console.error('Failed to upsert relationships for generated reflection', err);
+    }
+    if (period === 'daily' || period === 'weekly' || period === 'monthly') {
+      try {
+        markRun(db, period, getToken(period));
+      } catch (err) {
+        console.warn('Failed to mark reflection run', err.message);
+      }
     }
 
     res.status(201).json({ reflection: hydrateReflection(created), generated: true, events: evidenceEvents });

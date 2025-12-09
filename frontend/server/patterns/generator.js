@@ -1,5 +1,6 @@
 const { getDb } = require('../db');
 const { callGemini, extractJson } = require('../ai/gemini');
+const { buildPatternPrompt } = require('../prompts');
 
 function safeParse(val) {
   try {
@@ -279,24 +280,7 @@ function buildPrompt({ events, rangeStart, rangeEnd, depth, similarityGroups, co
     }))
   };
 
-  return [
-    `You are Baymax, a neutral pattern mirror. Never advise or moralize. Report observations only.`,
-    `Analyze structured JSON for ${rangeStart} to ${rangeEnd}. Depth: ${depth}.`,
-    `Output JSON ONLY with keys:`,
-    `summary (string),`,
-    `patterns (array of { statement: string, confidence: number 0-1, type: "correlation"|"trend"|"repetition"|"anomaly"|string, evidence_event_ids: number[], insight?: string, data?: any }),`,
-    `insights (short neutral paragraph),`,
-    `social_graph (array of { person: string, mentions: number }),`,
-    `time_spent_heatmap (array of { bucket: string, count: number }),`,
-    `long_term_arcs (array of strings capturing multi-week/month arcs),`,
-    `goal_progress (array of { metric: string, summary: string }),`,
-    `identity_patterns (array of strings representing recurring self themes).`,
-    `Constraints: neutral tone, no advice, include confidence for each pattern, use only event ids from input as evidence_event_ids.`,
-    `Similarity groups derive from embeddings; use them to surface recurring themes.`,
-    `If unsure, return an empty patterns array.`,
-    `Input JSON:`,
-    JSON.stringify(context, null, 2)
-  ].join('\n');
+  return buildPatternPrompt({ rangeStart, rangeEnd, depth, context });
 }
 
 async function generatePatterns({ rangeStart, rangeEnd, depth = 'standard' }) {

@@ -1,6 +1,7 @@
 const express = require('express');
 const { generateSummary, generateCaptureMetadata, extractJson, callGemini } = require('../ai/gemini');
 const { getDb } = require('../db');
+const { buildEntityChatPrompt, ENTITY_CHAT_SYSTEM_INSTRUCTION } = require('../prompts');
 
 const router = express.Router();
 
@@ -96,15 +97,8 @@ router.post('/entity-chat', async (req, res) => {
       })
       .filter(Boolean);
 
-    const prompt = [
-      `You are analysing notes about ${entityType} "${entityId}".`,
-      `Question: ${question}`,
-      `Context (${contextLines.length} captures):`,
-      contextLines.join('\n'),
-      `Provide a concise, neutral answer. If context is thin, say so.`
-    ].join('\n\n');
-
-    const answer = await callGemini({ prompt, systemInstruction: 'Be concise, neutral, cite patterns where possible.' });
+    const prompt = buildEntityChatPrompt({ entityType, entityId, question, contextLines });
+    const answer = await callGemini({ prompt, systemInstruction: ENTITY_CHAT_SYSTEM_INSTRUCTION });
     res.json({ answer, used_events: events.length });
   } catch (err) {
     res.status(500).json({ message: 'Failed to chat about entity', error: err.message });

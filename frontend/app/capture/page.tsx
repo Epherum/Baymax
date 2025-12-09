@@ -3,24 +3,43 @@
 import { useState } from "react";
 import { CaptureForm } from "@/components/capture/CaptureForm";
 import { RecentEntries } from "@/components/capture/RecentEntries";
+import { Modal } from "@/components/ui/Modal";
 
 export default function CapturePage() {
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
+    const [showCaptureModal, setShowCaptureModal] = useState(false);
 
-  return (
-    <div style={{ maxWidth: "1000px", margin: "0 auto", paddingBottom: "4rem" }}>
-      <header style={{ marginBottom: "2rem" }}>
-        <h1>Capture</h1>
-        <p className="text-muted">Log your thoughts, feelings, and events.</p>
-      </header>
+    return (
+        <div style={{ maxWidth: "1100px", margin: "0 auto", paddingBottom: "4rem" }}>
+            <header style={{ marginBottom: "1.5rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", alignItems: "center", flexWrap: "wrap" }}>
+                    <div>
+                        <h1>Capture</h1>
+                        <p className="text-muted" style={{ marginTop: "0.25rem" }}>Log your thoughts, feelings, and events.</p>
+                    </div>
+                    <button className="btn btn-primary" type="button" onClick={() => setShowCaptureModal(true)}>
+                        Add capture
+                    </button>
+                </div>
+            </header>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 350px", gap: "2rem", alignItems: "start" }}>
-        {/* Left Column: Input & Text */}
-        <CaptureForm onEntrySaved={() => setRefreshTrigger((prev) => prev + 1)} />
+            <section style={{ border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "1rem", background: "var(--card)" }}>
+                <RecentEntries refreshTrigger={refreshTrigger} />
+            </section>
 
-        {/* Right Column: Recent Entries & Search */}
-        <RecentEntries refreshTrigger={refreshTrigger} />
-      </div>
-    </div>
-  );
+            <Modal
+                open={showCaptureModal}
+                onClose={() => setShowCaptureModal(false)}
+                title="New capture"
+                width="min(1200px, 98vw)"
+            >
+                <CaptureForm
+                    onEntrySaved={() => {
+                        setRefreshTrigger((prev) => prev + 1);
+                        setShowCaptureModal(false);
+                    }}
+                />
+            </Modal>
+        </div>
+    );
 }

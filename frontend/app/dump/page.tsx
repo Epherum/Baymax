@@ -14,6 +14,9 @@ export default function LifeDumpPage() {
     const [chunks, setChunks] = useState<LifeDumpChunk[]>([]);
     const [loading, setLoading] = useState(false);
     const [statusMessage, setStatusMessage] = useState<string | null>(null);
+    const [metricCheckLoading, setMetricCheckLoading] = useState(false);
+    const [metricCheckResult, setMetricCheckResult] = useState<{ new_keys: any[]; near_duplicates: any[] } | null>(null);
+    const [metricCheckError, setMetricCheckError] = useState<string | null>(null);
 
     // Chunk State
     const [chunkText, setChunkText] = useState("");
@@ -41,6 +44,8 @@ export default function LifeDumpPage() {
         } else {
             setChunks([]);
         }
+        setMetricCheckResult(null);
+        setMetricCheckError(null);
     }, [selectedImportId]);
 
     const selectedImport = useMemo(
@@ -172,6 +177,26 @@ export default function LifeDumpPage() {
         }
     }
 
+    async function handleCheckMetrics() {
+        if (!selectedImportId) return;
+        setMetricCheckLoading(true);
+        setMetricCheckError(null);
+        try {
+            const res = await fetch(`/api/imports/${selectedImportId}/metric-check`);
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                throw new Error(data?.message || "Metric check failed");
+            }
+            const data = await res.json();
+            setMetricCheckResult(data.metrics ?? { new_keys: [], near_duplicates: [] });
+        } catch (err: any) {
+            setMetricCheckError(err?.message || "Metric check failed");
+            setMetricCheckResult(null);
+        } finally {
+            setMetricCheckLoading(false);
+        }
+    }
+
     async function handleSummarize(text: string) {
         setSummarizing(true);
         try {
@@ -207,8 +232,16 @@ export default function LifeDumpPage() {
                     <>
                         <header>
                             <h1>{selectedImport.title || "Untitled Import"}</h1>
-                            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
                                 <p className="text-muted">Status: {selectedImport.status}</p>
+                                <button
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={handleCheckMetrics}
+                                    disabled={metricCheckLoading}
+                                    type="button"
+                                >
+                                    {metricCheckLoading ? "Checking metrics..." : "Check metrics for duplicates"}
+                                </button>
                                 {selectedImport.status !== "completed" && (
                                     <button className="btn btn-primary btn-sm" onClick={handleCompleteImport}>
                                         Finalize Import
@@ -221,6 +254,43 @@ export default function LifeDumpPage() {
                             <p className="text-muted text-small" style={{ marginTop: "0.25rem" }}>
                                 Set start/end to anchor the time span; finalizing pushes everything into metrics/person charts.
                             </p>
+                            {metricCheckError && (
+                                <div className="text-small" style={{ color: "var(--destructive)", marginTop: "0.35rem" }}>
+                                    {metricCheckError}
+                                </div>
+                            )}
+                            {metricCheckResult && (
+                                <div className="text-small" style={{ marginTop: "0.5rem", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                                    <strong>Metric check</strong>
+                                    {metricCheckResult.near_duplicates.length > 0 && (
+                                        <div>
+                                            <div>Near-duplicates (consider merging):</div>
+                                            <ul style={{ margin: "0.25rem 0 0 1rem", padding: 0 }}>
+                                                {metricCheckResult.near_duplicates.map((m) => (
+                                                    <li key={`${m.chunk_id}:${m.normalized}`} style={{ listStyle: "disc" }}>
+                                                        Chunk #{m.position}: "{m.key}" → closest "{m.closest}" (distance {m.distance})
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+                                    {metricCheckResult.new_keys.length > 0 && (
+                                        <div>
+                                            <div>New metrics (no close match):</div>
+                                            <ul style={{ margin: "0.25rem 0 0 1rem", padding: 0 }}>
+                                                {metricCheckResult.new_keys.map((m) => (
+                                                    <li key={`${m.chunk_id}:${m.normalized}`} style={{ listStyle: "disc" }}>
+                                                        Chunk #{m.position}: "{m.key}" (will save as "{m.normalized}")
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+                                    {metricCheckResult.near_duplicates.length === 0 && metricCheckResult.new_keys.length === 0 && (
+                                        <div>No new metrics detected.</div>
+                                    )}
+                                </div>
+                            )}
                             {statusMessage && <div className="text-small" style={{ color: "var(--foreground)", marginTop: "0.5rem" }}>{statusMessage}</div>}
                         </header>
 
