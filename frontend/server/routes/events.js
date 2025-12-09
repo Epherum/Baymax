@@ -72,7 +72,7 @@ router.get('/', (req, res) => {
     .prepare(
       `SELECT e.id, e.source, e.raw_text, e.occurred_at, e.created_at,
               e.import_id, e.chunk_id,
-              em.summary, em.mood_score, em.energy_level, em.emotions, em.people,
+              em.summary, em.mood_score, em.energy_level, em.location, em.importance, em.emotions, em.people,
               em.activities, em.themes, em.tags, em.confidence, em.version, em.last_edited_at, em.metrics,
               EXISTS (
                 SELECT 1 FROM embeddings emb
