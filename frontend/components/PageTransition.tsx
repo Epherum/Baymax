@@ -21,6 +21,11 @@ function FrozenRouter(props: { children: React.ReactNode }) {
 export default function PageTransition({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
 
+    // Metrics pages keep their own internal tab navigation; skip global page fade to avoid double animations.
+    if (pathname?.startsWith("/metrics")) {
+        return <div style={{ width: "100%", height: "100%" }}>{children}</div>;
+    }
+
     return (
         <AnimatePresence mode="wait">
             <motion.div

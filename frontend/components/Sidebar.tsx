@@ -91,7 +91,8 @@ export function Sidebar() {
 
                 <nav style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
                     {navItems.map((item) => {
-                        const isActive = pathname === item.href || (item.href === "/capture" && pathname === "/");
+                        const isMetrics = item.href.startsWith("/metrics");
+                        const isActive = isMetrics ? pathname?.startsWith("/metrics") : pathname === item.href || (item.href === "/capture" && pathname === "/");
                         const Icon = item.icon;
 
                         return (
