@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, BarChart2, Target, Settings, Archive, PenLine, Shield } from "lucide-react";
+import { BookOpen, BarChart2, Target, Settings, Archive, PenLine, Shield, Trophy } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
 
@@ -14,6 +14,7 @@ const navItems = [
     { href: "/reflections", label: "Reflections", icon: BarChart2 },
     { href: "/goals", label: "Goals", icon: Target },
     { href: "/metrics", label: "Metrics", icon: BarChart2 },
+    { href: "/achievements", label: "Achievements", icon: Trophy },
     { href: "/pillars", label: "Pillars", icon: Shield },
     { href: "/settings", label: "Settings", icon: Settings },
 ];

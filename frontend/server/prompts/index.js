@@ -23,6 +23,7 @@ Example output:
 
 const ENTITY_CHAT_SYSTEM_INSTRUCTION = 'Be concise, neutral, cite patterns where possible.';
 const PILLAR_CHAT_SYSTEM_INSTRUCTION = 'Be concise, grounded in provided events, and focus on alignment vs drift.';
+const ACHIEVEMENTS_CHAT_SYSTEM_INSTRUCTION = 'Stay concise, factual, and only use supplied achievements—do not invent details.';
 
 function buildSummaryPrompt(text) {
   return `Text:\n${text.slice(0, 6000)}\n\nReturn a concise neutral summary.`;
@@ -127,6 +128,23 @@ function buildPatternPrompt({ rangeStart, rangeEnd, depth, context }) {
   ].join('\n');
 }
 
+function buildAchievementsChatPrompt({ question, achievements }) {
+  const lines = achievements.map((a) => {
+    const date = a.occurred_at ? new Date(a.occurred_at).toISOString().slice(0, 10) : 'Undated';
+    const tagText = a.tags && a.tags.length ? ` [${a.tags.join(', ')}]` : '';
+    const desc = a.description ? a.description.replace(/\s+/g, ' ').slice(0, 200) : '';
+    return `${date} — ${a.title}${tagText}${desc ? ` — ${desc}` : ''}`;
+  });
+
+  return [
+    'You are helping the user recall their logged achievements (big and small wins).',
+    'Use only the provided achievements; do not invent details or dates. If information is missing, say so.',
+    `User question: ${question}`,
+    lines.length ? `Achievements (${lines.length}):\n${lines.join('\n')}` : 'No achievements logged yet.',
+    'Answer concisely and keep to the facts the user logged.'
+  ].join('\n\n');
+}
+
 function buildPillarChatPrompt({ pillarTitle, pillarDetails, question, contextLines }) {
   return [
     `You are reviewing how the user aligns or strays from the pillar "${pillarTitle}".`,
@@ -144,11 +162,13 @@ module.exports = {
   CAPTURE_METADATA_SYSTEM_INSTRUCTION,
   ENTITY_CHAT_SYSTEM_INSTRUCTION,
   PILLAR_CHAT_SYSTEM_INSTRUCTION,
+  ACHIEVEMENTS_CHAT_SYSTEM_INSTRUCTION,
   buildSummaryPrompt,
   buildCaptureMetadataPrompt,
   buildEntityChatPrompt,
   buildInsightChatPrompt,
   buildReflectionChatPrompt,
   buildPatternPrompt,
-  buildPillarChatPrompt
+  buildPillarChatPrompt,
+  buildAchievementsChatPrompt
 };

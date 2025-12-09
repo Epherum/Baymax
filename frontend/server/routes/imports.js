@@ -60,6 +60,12 @@ router.get('/', (_req, res) => {
   res.json({ imports });
 });
 
+router.get('/stats', (_req, res) => {
+  const db = getDb();
+  const totalImports = db.prepare('SELECT COUNT(*) AS c FROM life_dump_imports').get().c ?? 0;
+  res.json({ total: totalImports });
+});
+
 router.get('/:id', (req, res) => {
   const db = getDb();
   const importRow = db

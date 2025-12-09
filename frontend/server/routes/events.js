@@ -89,6 +89,30 @@ router.get('/', (req, res) => {
   res.json({ events: rows, limit, offset });
 });
 
+router.get('/stats', (_req, res) => {
+  const db = getDb();
+  const total = db.prepare('SELECT COUNT(*) AS c FROM events').get().c ?? 0;
+  const last30 = db
+    .prepare("SELECT COUNT(*) AS c FROM events WHERE occurred_at >= datetime('now', '-30 days')")
+    .get().c ?? 0;
+  const metricRows = db.prepare('SELECT metrics FROM event_metadata WHERE metrics IS NOT NULL').all();
+  const uniqueMetrics = new Set();
+  for (const row of metricRows) {
+    if (!row?.metrics) continue;
+    try {
+      const parsed = typeof row.metrics === 'string' ? JSON.parse(row.metrics) : row.metrics;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        Object.keys(parsed).forEach((k) => {
+          if (k) uniqueMetrics.add(String(k));
+        });
+      }
+    } catch {
+      // ignore malformed json
+    }
+  }
+  res.json({ total, last_30_days: last30, unique_metrics: uniqueMetrics.size });
+});
+
 router.get('/:id', (req, res) => {
   const db = getDb();
   const row = db

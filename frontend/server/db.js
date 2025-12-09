@@ -149,6 +149,24 @@ function applyMigrations(db) {
     `);
     db.exec("CREATE INDEX idx_pillars_title ON pillars(title)");
   }
+
+  const hasAchievements = db
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='achievements'")
+    .get();
+  if (!hasAchievements) {
+    db.exec(`
+      CREATE TABLE achievements (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        description TEXT,
+        tags TEXT,
+        occurred_at DATETIME,
+        created_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+        updated_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP)
+      );
+    `);
+    db.exec("CREATE INDEX idx_achievements_occurred_at ON achievements(occurred_at DESC, created_at DESC)");
+  }
 }
 
 function openDatabase(options = {}) {

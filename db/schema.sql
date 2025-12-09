@@ -182,3 +182,24 @@ CREATE TABLE entity_relationships (
 
 CREATE INDEX idx_entity_relationships_target ON entity_relationships(target_type, target_id, occurred_at);
 CREATE INDEX idx_entity_relationships_source ON entity_relationships(source_type, source_id, occurred_at);
+
+CREATE TABLE pillars (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  values_text TEXT,
+  created_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP)
+);
+
+CREATE INDEX idx_pillars_title ON pillars(title);
+
+CREATE TABLE achievements (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  description TEXT,
+  tags TEXT,
+  occurred_at DATETIME,
+  created_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+  updated_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP)
+);
+
+CREATE INDEX idx_achievements_occurred_at ON achievements(occurred_at DESC, created_at DESC);

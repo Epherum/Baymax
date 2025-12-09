@@ -17,6 +17,8 @@ export default function LifeDumpPage() {
     const [metricCheckLoading, setMetricCheckLoading] = useState(false);
     const [metricCheckResult, setMetricCheckResult] = useState<{ new_keys: any[]; near_duplicates: any[] } | null>(null);
     const [metricCheckError, setMetricCheckError] = useState<string | null>(null);
+    const [stats, setStats] = useState<{ total: number } | null>(null);
+    const [statsError, setStatsError] = useState<string | null>(null);
 
     // Chunk State
     const [chunkText, setChunkText] = useState("");
@@ -36,6 +38,7 @@ export default function LifeDumpPage() {
 
     useEffect(() => {
         refreshImports();
+        loadStats();
     }, []);
 
     useEffect(() => {
@@ -81,6 +84,19 @@ export default function LifeDumpPage() {
         }
     }
 
+    async function loadStats() {
+        setStatsError(null);
+        try {
+            const res = await fetch("/api/imports/stats");
+            if (!res.ok) throw new Error("Failed to load stats");
+            const data = await res.json();
+            setStats(data);
+        } catch (err) {
+            const message = err instanceof Error ? err.message : "Failed to load stats";
+            setStatsError(message);
+        }
+    }
+
     async function refreshChunks(id: number) {
         const res = await fetch(`/api/imports/${id}`);
         if (res.ok) {
@@ -105,6 +121,7 @@ export default function LifeDumpPage() {
                 const data = await res.json();
                 setImports([data.import, ...imports]);
                 setSelectedImportId(data.import.id);
+                loadStats();
             }
         } finally {
             setLoading(false);
@@ -228,6 +245,38 @@ export default function LifeDumpPage() {
 
             {/* Main Content: Chunks */}
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "2rem", overflowY: "auto", paddingRight: "1rem" }}>
+                <section
+                    style={{
+                        border: "1px solid var(--border)",
+                        borderRadius: "1.1rem",
+                        padding: "1rem",
+                        background: "var(--card)",
+                        boxShadow: "0 12px 26px rgba(15,23,42,0.06)"
+                    }}
+                >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem", flexWrap: "wrap" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                            <div style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
+                                <span className="tag-filter" style={{ borderColor: "var(--border)", background: "var(--muted)" }}>Life dump</span>
+                                <span className="text-small text-muted">Long-form imports and chunks</span>
+                            </div>
+                            <div>
+                                <h2 style={{ margin: 0 }}>Life Dump</h2>
+                                <p className="text-muted text-small" style={{ marginTop: "0.2rem" }}>
+                                    Import transcripts or long notes, then split and summarize.
+                                </p>
+                            </div>
+                            {statsError && <div className="text-small" style={{ color: "var(--destructive)" }}>{statsError}</div>}
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(1, minmax(140px, 1fr))", gap: "0.75rem", minWidth: "160px" }}>
+                            <div style={{ padding: "0.85rem", borderRadius: "0.9rem", background: "var(--muted)", border: "1px solid var(--border)" }}>
+                                <div className="text-small text-muted">Logged</div>
+                                <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>{stats?.total ?? "…"}</div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
                 {selectedImport ? (
                     <>
                         <header>

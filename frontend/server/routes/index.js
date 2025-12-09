@@ -9,6 +9,7 @@ const metricsRouter = require('./metrics');
 const graphRouter = require('./graph');
 const entitiesRouter = require('./entities');
 const pillarsRouter = require('./pillars');
+const achievementsRouter = require('./achievements');
 const settingsRouter = require('./settings');
 
 const router = express.Router();
@@ -22,6 +23,7 @@ router.use('/metrics', metricsRouter);
 router.use('/graph', graphRouter);
 router.use('/entities', entitiesRouter);
 router.use('/pillars', pillarsRouter);
+router.use('/achievements', achievementsRouter);
 router.use('/settings', settingsRouter);
 
 module.exports = router;
