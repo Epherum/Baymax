@@ -2,12 +2,14 @@
   "name": "frontend",
   "version": "0.1.0",
   "private": true,
+  "main": "electron/main.js",
   "scripts": {
     "dev": "NODE_ENV=development node server.js",
     "build": "next build",
     "start": "NODE_ENV=production node server.js",
     "lint": "biome check",
-    "format": "biome format --write"
+    "format": "biome format --write",
+    "build:desktop": "npm run build && electron-builder"
   },
   "dependencies": {
     "@xenova/transformers": "^2.17.0",
@@ -27,6 +29,26 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "electron": "^33.2.0",
+    "electron-builder": "^24.13.3",
     "typescript": "^5"
+  },
+  "build": {
+    "appId": "com.baymax.desktop",
+    "productName": "Baymax",
+    "asar": false,
+    "files": [
+      "package.json",
+      "server.js",
+      "server/**/*",
+      ".next/**/*",
+      "public/**/*",
+      "db/**/*",
+      "electron/**/*",
+      "node_modules/**/*"
+    ],
+    "directories": {
+      "buildResources": "build"
+    }
   }
 }

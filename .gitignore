@@ -3,6 +3,7 @@ frontend/node_modules
 frontend/.next
 frontend/.turbo
 frontend/.swc
+frontend/dist
 
 # Logs
 npm-debug.log*
