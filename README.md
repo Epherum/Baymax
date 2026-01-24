@@ -23,6 +23,17 @@ cd frontend
 npm install
 ```
 
+## Environment
+Create `frontend/.env` (or export variables in your shell). Start with `frontend/.env.example`.
+
+Required (for AI features only):
+- `GEMINI_API` (or `Gemini_API` / `GEMINI_API_KEY`) — Gemini API key.
+
+Optional:
+- `PORT` — server port (default `3000`).
+- `BAYMAX_DB_PATH` — override DB location (default `db/baymax.sqlite`).
+- `BAYMAX_DB_KEY` — SQLCipher key if you built `better-sqlite3` with SQLCipher.
+
 ## Run (dev)
 ```bash
 cd frontend
@@ -67,3 +78,16 @@ npm run format   # biome format --write
 - Metrics/graph rely on structured metadata from captures/life dumps; finalize imports to materialize events.
 - Embedding worker loads the model on demand; first call may take a moment.
 - If SQLCipher is required, ensure your `better-sqlite3` build links against SQLCipher and set `BAYMAX_DB_KEY`.
+
+## Backup & Restore (resetting your PC)
+Back up these items before wiping your machine:
+- `frontend/.env` (or record the env vars you export).
+- `db/baymax.sqlite` plus its WAL files (`db/baymax.sqlite-wal`, `db/baymax.sqlite-shm`).
+- Optional: any custom DB path you used via `BAYMAX_DB_PATH`.
+
+Restore steps after a reset:
+1. Recreate `frontend/.env` from `frontend/.env.example` and add your keys.
+2. Put the DB files back into `db/` (or your custom path).
+3. `cd frontend && npm install && npm run dev` (or build/start for prod).
+
+Note: There is no Prisma layer here. The app auto-creates and migrates the SQLite DB from `db/schema.sql` if it does not exist, but it does not seed sample data. Restore the DB files if you want your previous content.
